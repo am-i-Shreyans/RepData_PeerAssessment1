@@ -5,21 +5,85 @@ output:
     keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+invisible(sapply(c('tidyverse','lubridate'),library,character.only = T))
+```
 
 ## Loading and preprocessing the data
-
-
+```{r}
+data = read.csv(unzip('repdata_data_activity.zip'),
+                colClasses = c('integer','Date','integer'))
+str(data)
+head(data)
+tail(data)
+summary(data)
+```
 
 ## What is mean total number of steps taken per day?
+```{r}
+steps_each_day = data %>% group_by(date) %>%
+  summarise(Total_steps = sum(steps,na.rm = T))
 
+ggplot(steps_each_day,aes(x = Total_steps)) +
+  geom_histogram(bins = 15,color = 'black',size = 1) + theme_bw() +
+  scale_x_continuous(n.breaks = 9) +
+  labs(title = 'Total number of steps taken each day') +
+  xlab('Total steps in a day') + ylab('Frequency')
 
+mean(steps_each_day$Total_steps)
+median(steps_each_day$Total_steps)
+```
 
 ## What is the average daily activity pattern?
+```{r}
+interval_avg = data %>% group_by(interval) %>%
+  summarise(Avg_steps = mean(steps,na.rm = T))
 
+ggplot(interval_avg,aes(x = interval,y = Avg_steps)) +
+  geom_line(color = 'blue') +
+  labs(title = 'Average number of steps in the interval',
+       x = 'Time interval',y = 'Average no. of steps') + theme_bw()
 
+interval_avg %>% filter(Avg_steps == max(Avg_steps)) %>% pull(interval)
+```
 
 ## Imputing missing values
+```{r}
+# Number of rows containing NA
+sum(is.na(data))
 
+# Imputing NAs with the mean of that 5-minute interval
+imputed_data = data %>% group_by(interval) %>%
+  mutate(steps = if_else(is.na(steps),
+                         as.integer(round(mean(steps,na.rm = T))),
+                         steps)) %>% ungroup()
 
+steps_each_day_imputed = imputed_data %>% group_by(date) %>%
+  summarise(Total_steps = sum(steps,na.rm = T))
+
+ggplot(steps_each_day_imputed,aes(x = Total_steps)) +
+  geom_histogram(bins = 15,color = 'black',size = 1) + theme_bw() +
+  scale_x_continuous(n.breaks = 9) +
+  labs(title = 'Total number of steps taken each day',
+       x = 'Total steps in a day',y = 'Frequency')
+
+mean(steps_each_day_imputed$Total_steps)
+median(steps_each_day_imputed$Total_steps)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+interval_avg_imputed = imputed_data %>%
+  mutate(Day = factor(if_else(weekdays(date) %in% c('Saturday','Sunday'),
+                              'Weekend','Weekday'),
+                      levels = c('Weekday','Weekend'))) %>%
+  group_by(Day,interval) %>% summarise(Avg_steps = mean(steps,na.rm = T)) %>%
+  ungroup()
+
+ggplot(interval_avg_imputed,aes(x = interval,y = Avg_steps)) +
+  geom_line(color = 'blue') + facet_wrap(.~Day,nrow = 2) +
+  labs(title = 'Day wise average steps in interval (Imputed data)',
+       x = 'Time interval',y = 'Average no. of steps')
+```
+
